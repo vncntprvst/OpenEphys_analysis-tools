@@ -1,4 +1,4 @@
-function info = convert_open_ephys_to_kwik(varargin)
+function info = convert_OE_2_Kwik(varargin)
 
 % 
 % Converts Open Ephys data to KWIK format
@@ -49,19 +49,18 @@ info = get_session_info(input_directory);
 % 1. create the KWIK file
 
 kwikfile = [get_full_path(output_directory) filesep ...
-        'session_info.kwe'];
+        'experiment_1.kwe'];
     
 disp(kwikfile)
     
 info.kwikfile = kwikfile;
     
-if numel(dir([kwikfile]))
+if numel(dir(kwikfile))
     delete(kwikfile)
 end
 
 fid = H5F.create(kwikfile);
 h5writeatt(kwikfile, '/', 'kwik_version', '2')
-
 
 %%
 
@@ -100,12 +99,12 @@ for processor = 1:size(info.processors,1)
     
     recorded_channels = info.processors{processor, 3};
     
-    if length(recorded_channels) > 0
+    if ~isempty(recorded_channels)
     
         kwdfile = [get_full_path(output_directory) filesep ...
             int2str(info.processors{processor,1}) '_raw.kwd'];
 
-        if numel(dir([kwdfile]))
+        if numel(dir(kwdfile))
             delete(kwdfile)
         end
         
@@ -116,6 +115,7 @@ for processor = 1:size(info.processors,1)
                 '_CH' int2str(recorded_channels(ch)) '.continuous'];
 
             [data, timestamps, info_continuous] = load_open_ephys_data(filename_in);
+%             [data, timestamps, info_continuous] = load_open_ephys_multi_data(filename_in);
 
             recording_blocks = unique(info_continuous.recNum);
             block_size = info_continuous.header.blockLength;
@@ -126,7 +126,7 @@ for processor = 1:size(info.processors,1)
                 start_sample = (in_block(1)-1)*block_size+1;
                 end_sample = (in_block(end)-1)*block_size+block_size;
 
-                this_block = int16(data(start_sample:end_sample));
+                this_block = int16(data(start_sample:end_sample))';
 
                 if ch == 1
                         
@@ -137,11 +137,21 @@ for processor = 1:size(info.processors,1)
                     
                     internal_path = ['/recordings/' int2str(X-1)];
     
-                    h5create(kwdfile, [internal_path '/data'], ...
-                        [numel(this_block) numel(recorded_channels)], ...
+                    h5create_Ephys(kwdfile, [internal_path '/data'], ...
+                        [numel(recorded_channels) numel(this_block)], ...
+                        'MaxSize',  [numel(recorded_channels) Inf],...
                         'Datatype', 'int16', ...
-                        'ChunkSize', [numel(this_block) 1]);
+                        'ChunkSize', [1 numel(this_block)], ... %why not 32x640? 
+                        ...%'Filters', 'none', 
+                        'FillValue',  int16(0)); 
                     
+                    h5writeatt(kwdfile, '/', 'kwik_version', '2');
+                    h5writeatt(kwdfile, internal_path, 'name',  ['Open Ephys Recording #' int2str(X-1)]);
+                    h5writeatt(kwdfile, internal_path, 'start_time',  uint32(timestamps(1)*info_continuous.header.sampleRate));
+                    h5writeatt(kwdfile, internal_path, 'start_sample',  int16(0));
+                    h5writeatt(kwdfile, internal_path, 'sample_rate',  info_continuous.header.sampleRate);
+                    h5writeatt(kwdfile, internal_path, 'bit_depth',  uint16(16));
+
                     h5create(kwikfile, [internal_path '/start_sample'], [1 1],...
                         'Datatype', 'int64');
                     h5write(kwikfile, [internal_path '/start_sample'], int64(timestamps(start_sample)));
@@ -153,7 +163,7 @@ for processor = 1:size(info.processors,1)
                 end
 
                 h5write(kwdfile,['/recordings/' int2str(X-1) '/data'], ...
-                    this_block(1:end), [1 ch], [numel(this_block) 1]);
+                    this_block(1:end), [ch 1], [1 numel(this_block)]);
 
             end
 
@@ -190,15 +200,15 @@ for X = 1:size(info.electrodes,1)
     
     h5writeatt(kwikfile, internal_path, 'name', filename_string);
     
-    filename_string(find(filename_string == ' ')) = [ ];
+    filename_string(filename_string == ' ') = [ ];
     
     filename_in = [input_directory filesep ...
         filename_string '.spikes'];
     
-    [data, timestamps, info_spikes] = load_open_ephys_data(filename_in);
+    [data, ~, info_spikes] = load_open_ephys_data(filename_in);
     
      h5create(kwxfile, [internal_path '/waveforms_filtered'], ...
-                 [size(data)], ...
+                 size(data), ...
                  'Datatype', 'int16', ...
                  'ChunkSize',[1 size(data,2) size(data,3)]);
              

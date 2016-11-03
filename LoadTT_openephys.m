@@ -3,6 +3,13 @@ function [t, wv] = LoadTT_openephys(fn,records_to_get,record_units)
 %   LOADTT_OPENEPHYS loads open ephys data and fullfils all requirement for
 %   MClust loading engines (see MClust 3.5 documentation for details on
 %   MClust loading engines).
+% 
+%   Called from MClustData.LoadNeuralWaveforms at 35
+%   In CalculateFeatures at 45
+%   In MClustData.FillFeatures at 9
+%   In MClustData.LoadTetrodeData at 25
+%   In MClustMainWindowClass.MClustMainWindowClass>MClustMainWindowClass.LoadTetrodeData at 175
+%   In MClustMainWindowClass.CreateMainWindow>@(src,event)LoadTetrodeData(self)
 %
 %   Syntax:
 %   [T, WV] = LOADTT_OPENEPHYS(FN,RECORDS_TO_GET,RECORD_UNITS)
